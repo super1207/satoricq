@@ -1,0 +1,2 @@
+# satoricq
+all to satori
