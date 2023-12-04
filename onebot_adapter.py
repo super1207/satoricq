@@ -20,6 +20,7 @@ class AdapterOnebot:
         self._is_stop = False
         self._login_status = 3  # DISCONNECT
         self._queue = Queue(maxsize=100)
+        self._id = 0
 
     async def enable(self) -> None:
         '''适配器启用的时候会调用，可以不理，也可以没这个函数
@@ -97,18 +98,13 @@ class AdapterOnebot:
                 if joined_at:
                     joined_at = int(str(joined_at) + "000")
                 member_obj = {
-                    "user":user_obj,
                     "nick":get_json_or(sender,"card",None),
                     "avatar":get_json_or(sender,"avatar",None),
                     "joined_at":joined_at
                 }
                 message_obj = {
                     "id":str(evt["message_id"]),
-                    "content":evt["raw_message"],
-                    "channel":channel_obj,
-                    "guild":guild_obj,
-                    "member":member_obj,
-                    "user":user_obj,
+                    "content":evt["raw_message"], # todo
                     "created_at":int(str(evt["time"] ) + "000")
                 }
                 role_obj = {
@@ -116,9 +112,9 @@ class AdapterOnebot:
                         "name":get_json_or(sender,"role","member")
                     }
                 satori_evt = {
-                    "id":1207,
+                    "id":self._id,
                     "type":"message-created",
-                    "platform":"onebot",
+                    "platform":"satori",
                     "self_id":str(evt["self_id"]),
                     "timestamp":int(str(evt["time"] ) + "000"),
                     "channel":channel_obj,
@@ -128,6 +124,7 @@ class AdapterOnebot:
                     "role":role_obj,
                     "user":user_obj
                 }
+                self._id += 1
                 self._queue.put_nowait(satori_evt)
             elif message_type == "private":
                 channel_obj = {
@@ -153,22 +150,20 @@ class AdapterOnebot:
                     joined_at = int(str(joined_at) + "000")
                 message_obj = {
                     "id":str(evt["message_id"]),
-                    "content":evt["raw_message"],
-                    "channel":channel_obj,
-                    "guild":None,
-                    "user":user_obj,
+                    "content":evt["raw_message"], # todo
                     "created_at":int(str(evt["time"] ) + "000")
                 }
                 satori_evt = {
-                    "id":1207,
+                    "id":self._id,
                     "type":"message-created",
-                    "platform":"onebot",
+                    "platform":"satori",
                     "self_id":str(evt["self_id"]),
                     "timestamp":int(str(evt["time"] ) + "000"),
                     "channel":channel_obj,
                     "message":message_obj,
                     "user":user_obj
                 }
+                self._id += 1
                 self._queue.put_nowait(satori_evt)
 
     async def _api_call(self,path,data) -> dict:
@@ -199,12 +194,12 @@ class AdapterOnebot:
                 "id":str(obret["user_id"]),
                 "name":obret["nickname"],
                 "nick":obret["nickname"],
-                "avatar":None,
+                "avatar":get_json_or(obret,"avatar",None),
                 "is_bot":None
             },
             "self_id":str(obret["user_id"]),
-            "platform":"onebot",
-            "status":self._login_status
+            "platform":"satori",
+            "status":self._login_status,
         }
         if platform == None and self_id == None:
             return [satori_ret]

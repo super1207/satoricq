@@ -7,6 +7,8 @@ from aiohttp import web
 import json
 import uuid
 
+from tool import remove_json_null
+
 class Satori:
     def __init__(self) -> None:
         self._config:Config = Config()
@@ -22,7 +24,13 @@ class Satori:
                     return adapter["adapter"]
         return None
     
+    async def ws_send_json(ws,js) -> None:
+        js = remove_json_null(js)
+        print("--------ws_send_json",json.dumps(js))
+        await ws.send_json(js)
+    
     async def _handle_http_normal(self,request:web.Request):
+        print("----http normal",request)
         '''在这里处理普通api调用'''
         # 鉴权
         if self._config.access_token != "":
@@ -49,6 +57,7 @@ class Satori:
         return web.Response(text="method not found")
     
     async def _handle_http_admin(self,request:web.Request):
+        print("----http admin",request)
         '''在这里处理管理api调用'''
         # 鉴权
         if self._config.access_token != "":
@@ -65,6 +74,11 @@ class Satori:
             })
         return web.Response(text="method not found")
     
+    async def _handle_http_foo(self,request:web.Request):
+        '''在这里处理其余任何api调用'''
+        print("--------http other",request)
+        return web.Response(text="method not found")
+    
     async def _handle_events_ws(self,request:web.Request):
         '''在这里处理websocket'''
         ws_id = str(uuid.uuid4())
@@ -75,10 +89,12 @@ class Satori:
             "ws":ws,
             "is_access":False
         }
+        print("--------http ws",request,ws_id)
         try:
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     data_json = json.loads(msg.data)
+                    print("--------recv_ws",msg.data)
                     op = data_json["op"]
                     if op == 3:
                         if self._config.access_token != "":
@@ -89,7 +105,7 @@ class Satori:
                             logins = []
                             for adapter in self.adapterlist:
                                 logins += await adapter["adapter"].get_login(None,None)
-                            await ws.send_json({
+                            await Satori.ws_send_json(ws,{
                                 "op":4,
                                 "body":{
                                     "logins":logins
@@ -98,8 +114,8 @@ class Satori:
                         asyncio.create_task(get_logins(self,ws))
                     elif op == 1:
                         async def send_pong(ws):
-                            await ws.send_json({
-                                "op":2,
+                            await Satori.ws_send_json(ws,{
+                                "op":2
                             })
                         asyncio.create_task(send_pong(ws))
                 elif msg.type == aiohttp.WSMsgType.ERROR:
@@ -107,7 +123,7 @@ class Satori:
                         ws.exception())
         finally:
             del self.wsmap[ws_id]
-            print('websocket connection closed')
+            print("--------http ws close",ws_id)
         return ws
 
     async def init_after(self):
@@ -117,10 +133,8 @@ class Satori:
                 for wsid in self.wsmap:
                     ws = self.wsmap[wsid]
                     if ws["is_access"]:
-                        async def sendws(ws,msg):
-                            await ws.send_json({"op":0,"body":msg})
-                        asyncio.create_task(sendws(ws["ws"],msg))
-                print("recv",msg)
+                        asyncio.create_task(Satori.ws_send_json(ws["ws"],{"op":0,"body":msg}))
+                # print("recv",msg)
         # 读取配置文件
         await self._config.read_config()
         # 创建 adapter
@@ -144,7 +158,7 @@ class Satori:
             web.post("/v1/admin/{method}",self._handle_http_admin),
             web.get("/v1/events",self._handle_events_ws),
             web.post("/v1/{method}",self._handle_http_normal),
-            
+            web.post("/{method}",self._handle_http_foo),
         ])
         runner = web.AppRunner(app)
         await runner.setup()
