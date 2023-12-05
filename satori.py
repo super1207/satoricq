@@ -45,13 +45,19 @@ class Satori:
             return web.Response(text="bot not found")
         if method == "/v1/login.get":
             ret = await adapter.get_login(platform,self_id)
-            return web.Response(text=json.dumps(ret),headers={
+            return web.Response(text=json.dumps(remove_json_null(ret)),headers={
+                "Content-Type":"application/json; charset=utf-8"
+            })
+        elif method == "/v1/guild.member.get":
+            body = await request.json()
+            ret = await adapter.get_guild_member(platform,self_id,body["guild_id"],body["user_id"])
+            return web.Response(text=json.dumps(remove_json_null(ret)),headers={
                 "Content-Type":"application/json; charset=utf-8"
             })
         elif method == "/v1/message.create":
             body = await request.json()
             ret = await adapter.create_message(platform,self_id,body["channel_id"],body["content"])
-            return web.Response(text=json.dumps(ret),headers={
+            return web.Response(text=json.dumps(remove_json_null(ret)),headers={
                 "Content-Type":"application/json; charset=utf-8"
             })
         return web.Response(text="method not found")
@@ -69,7 +75,7 @@ class Satori:
             ret = []
             for adapter in self.adapterlist:
                 ret += await adapter["adapter"].get_login(None,None)
-            return web.Response(text=json.dumps(ret),headers={
+            return web.Response(text=json.dumps(remove_json_null(ret)),headers={
                 "Content-Type":"application/json; charset=utf-8"
             })
         return web.Response(text="method not found")
@@ -134,7 +140,7 @@ class Satori:
                     ws = self.wsmap[wsid]
                     if ws["is_access"]:
                         asyncio.create_task(Satori.ws_send_json(ws["ws"],{"op":0,"body":msg}))
-                # print("recv",msg)
+                print("------recv",msg)
         # 读取配置文件
         await self._config.read_config()
         # 创建 adapter
