@@ -53,6 +53,8 @@ WebHook（暂未实现）
 
 当消息被创建时触发（message-created）
 
+群组成员增加时触发（guild-member-added）
+
 **已实现消息元素类型：**
 
 收：文本、at、at全体、图片

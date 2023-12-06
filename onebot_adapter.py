@@ -361,6 +361,38 @@ class AdapterOnebot:
                 }
                 self._id += 1
                 self._queue.put_nowait(satori_evt)
+        elif post_type == "notice":
+            notice_type = evt["notice_type"]
+            if notice_type == "group_increase":
+                guild_obj = {
+                    "id":"GROUP_"+str(evt["group_id"]),
+                    "name":None,
+                    "avatar":None
+                }
+                member_obj = {
+                    "nick":None,
+                    "avatar":get_json_or(evt,"avatar",None),
+                    "joined_at":int(str(evt["time"] ) + "000")
+                }
+                user_obj = {
+                    "id":str(evt["user_id"]),
+                    "name":None,
+                    "nick":None,
+                    "avatar":None,
+                    "is_bot":None
+                }
+                satori_evt = {
+                    "id":self._id,
+                    "type":"guild-member-added",
+                    "platform":"satori",
+                    "self_id":str(evt["self_id"]),
+                    "timestamp":int(str(evt["time"] ) + "000"),
+                    "guild":guild_obj,
+                    "member":member_obj,
+                    "user":user_obj
+                }
+                self._id += 1
+                self._queue.put_nowait(satori_evt)
 
     async def _api_call(self,path,data) -> dict:
         url:str = parse.urljoin(self._http_url,path)
@@ -371,7 +403,7 @@ class AdapterOnebot:
         async with httpx.AsyncClient() as client:
             return (await client.post(url,headers=headers,data=data)).json()
     
-    async def satori_to_cq(self,satori_obj) -> str:
+    async def _satori_to_cq(self,satori_obj) -> str:
         ret = ""
         for node in satori_obj:
             if isinstance(node,str):
@@ -393,7 +425,7 @@ class AdapterOnebot:
     async def create_message(self,platform:str,self_id:str,channel_id:str,content:str):
         '''发送消息'''
         satori_obj = parse_satori_html(content)
-        to_send = await self.satori_to_cq(satori_obj)
+        to_send = await self._satori_to_cq(satori_obj)
         if channel_id.startswith("GROUP_"):
             group_id = int(channel_id[6:])
             ret = await self._api_call("/send_group_msg",{"group_id":group_id,"message":to_send})
