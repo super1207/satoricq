@@ -397,7 +397,7 @@ class AdapterOnebot:
     async def _api_call(self,path,data) -> dict:
         url:str = parse.urljoin(self._http_url,path)
         if self._access_token:
-            headers = {"Authorization":"Bearer {}".format([self._access_token])}
+            headers = {"Authorization":"Bearer {}".format(self._access_token)}
         else:
             headers = {}
         async with httpx.AsyncClient() as client:
