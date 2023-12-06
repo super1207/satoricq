@@ -1,4 +1,3 @@
-from urllib import parse
 import httpx
 from websockets import connect
 import asyncio
@@ -245,24 +244,27 @@ class AdapterOnebot:
         '''适配器创建之后会调用一次，应该在这里进行ws连接等操作，如果不需要，可以不写'''
         async def _ws_server(self:AdapterOnebot) -> None:
             while not self._is_stop:
-                self._login_status = 2 # CONNECT
-                async with connect(self._ws_url) as websocket:
-                    self._login_status = 1 # ONLINE
-                    try:
-                        while True:
-                            try:
-                                reply = await asyncio.wait_for(websocket.recv(),0.1)
-                                await self._event_deal(json.loads(reply))
-                            except asyncio.TimeoutError:
-                                if self._is_stop:
-                                    await websocket.close()
-                            except asyncio.QueueFull:
-                                print("队列满")
-                    except Exception as e:
-                        print(e)
-                        self._login_status = 3 # DISCONNECT
-                        print("ws连接已经断开")
-                        self._is_connect = False
+                try:
+                    self._login_status = 2 # CONNECT
+                    async with connect(self._ws_url) as websocket:
+                        print("onebot:ws已经连接")
+                        self._login_status = 1 # ONLINE
+                        try:
+                            while True:
+                                try:
+                                    reply = await asyncio.wait_for(websocket.recv(),0.1)
+                                    await self._event_deal(json.loads(reply))
+                                except asyncio.TimeoutError:
+                                    if self._is_stop:
+                                        await websocket.close()
+                                except asyncio.QueueFull:
+                                    print("队列满")
+                        except Exception as e:
+                            print(e)    
+                except Exception as e:
+                    print(e)
+                    print("onebot:ws连接已经断开")
+                    self._login_status = 3 # DISCONNECT
         asyncio.create_task(_ws_server(self))
     
     async def _event_deal(self,evt:dict):
@@ -325,15 +327,10 @@ class AdapterOnebot:
             elif message_type == "private":
                 channel_obj = {
                         "id":str(evt["user_id"]),
-                        "type":0,
+                        "type":3,
                         "name":None,
                         "parent_id":None
                     }
-                guild_obj = {
-                    "id":str(evt["user_id"]),
-                    "name":None,
-                    "avatar":None
-                }
                 user_obj = {
                     "id":str(evt["user_id"]),
                     "name":get_json_or(sender,"nickname",None),
@@ -395,7 +392,7 @@ class AdapterOnebot:
                 self._queue.put_nowait(satori_evt)
 
     async def _api_call(self,path,data) -> dict:
-        url:str = parse.urljoin(self._http_url,path)
+        url:str = self._http_url + path
         if self._access_token:
             headers = {"Authorization":"Bearer {}".format(self._access_token)}
         else:
@@ -456,7 +453,7 @@ class AdapterOnebot:
             return satori_ret
         
     async def get_guild_member(self,platform:Optional[str],self_id:Optional[str],guild_id:str,user_id:str) -> [dict]:
-        '''获取登录信息，如果platform和self_id为空，那么应该返回一个列表'''
+        '''获取群组成员信息，如果platform和self_id为空，那么应该返回一个列表'''
         obret =  (await self._api_call("/get_group_member_info",{
             "group_id":int(guild_id[6:]),
             "user_id":int(user_id)

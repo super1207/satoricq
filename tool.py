@@ -1,5 +1,5 @@
-import copy
 from html.parser import HTMLParser
+
 
 def get_json_or(js,key,default):
     '''获取json中的字段'''
@@ -69,4 +69,7 @@ def satori_to_plain(text):
         else:
             ret += ch
     return ret
+
+
+
             

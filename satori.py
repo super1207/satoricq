@@ -1,6 +1,7 @@
 import asyncio
 
 import aiohttp
+from kook_adapter import AdapterKook
 from onebot_adapter import AdapterOnebot
 from config import Config
 from aiohttp import web
@@ -14,6 +15,7 @@ class Satori:
         self._config:Config = Config()
         self.adapterlist = []
         self.wsmap = {}
+        self._evt_id = 100
 
     async def _get_adapter(self,platform,self_id):
         ''' 用于获取适配器 '''
@@ -100,7 +102,7 @@ class Satori:
             async for msg in ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     data_json = json.loads(msg.data)
-                    print("--------recv_ws",msg.data)
+                    print("--------recv_ws",json.dumps(msg.data))
                     op = data_json["op"]
                     if op == 3:
                         if self._config.access_token != "":
@@ -139,25 +141,30 @@ class Satori:
                 for wsid in self.wsmap:
                     ws = self.wsmap[wsid]
                     if ws["is_access"]:
+                        msg["id"] = self._evt_id
                         asyncio.create_task(Satori.ws_send_json(ws["ws"],{"op":0,"body":msg}))
-                print("------recv",msg)
+                        self._evt_id += 1
         # 读取配置文件
         await self._config.read_config()
         # 创建 adapter
         for botcfg in self._config.botlist:
             if botcfg["platform"] == "onebot":
                 adapter = AdapterOnebot(botcfg)
-                if hasattr(adapter,"init_after"):
-                    await adapter.init_after()
-                if hasattr(adapter,"enable"):
-                    await adapter.enable()
-                if hasattr(adapter,"get_msg"):
-                    asyncio.create_task(event_loop(self,adapter))
+            elif botcfg["platform"] == "kook":
+                adapter = AdapterKook(botcfg)
+            if hasattr(adapter,"init_after"):
+                await adapter.init_after()
+            if hasattr(adapter,"enable"):
+                await adapter.enable()
+            if hasattr(adapter,"get_msg"):
+                asyncio.create_task(event_loop(self,adapter))
+            login_info = []
+            if hasattr(adapter,"get_login"):
                 login_info = await adapter.get_login(None,None)
-                self.adapterlist.append({
-                    "adapter":adapter,
-                    "info":login_info,
-                })
+            self.adapterlist.append({
+                "adapter":adapter,
+                "info":login_info,
+            })
         # 创建server
         app = web.Application()
         app.add_routes([

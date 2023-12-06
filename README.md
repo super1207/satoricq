@@ -57,6 +57,43 @@ WebHook（暂未实现）
 
 ## onebot -> satori
 
+| 字段名          | 类型   | 默认值 | 说明                   | 例子                    |
+|--------------|------|-----|----------------------|-----------------------|
+| platform     | 文本   | -   | 固定为onebot            | onebot                |
+| ws_url       | 文本   | -   | 用于接收事件的主动websocket地址 | ws://127.0.0.1:5800   |
+| http_url     | 文本   | -   | 用于调用API的主动HTTP地址     | http://127.0.0.1:5700 |
+| access_token | 文本或空 | 空   | onebot的access_token  | 77156                 |
+
+**已实现事件：**
+
+当消息被创建时触发（message-created）
+
+群组成员增加时触发（guild-member-added）
+
+**已实现消息元素类型：**
+
+收：文本、at、at全体、图片
+
+发：文本、at、at全体、图片
+
+**已实现API：**
+
+获取登录信息列表（管理接口）
+
+获取登录信息（登录信息）
+
+发送消息（消息）
+
+获取群组成员（群组成员）
+
+## kook -> satori
+
+
+| 字段名          | 类型 | 默认值 | 说明                                                    | 例子                                  |
+|--------------|----|-----|-------------------------------------------------------|-------------------------------------|
+| platform     | 文本 | -   | 固定为kook                                               | kook                                |
+| access_token | 文本 | -   | kook平台的token,见:https://developer.kookapp.cn/app/index | 1/MTUyNDY=/snqjxHpGZFdEM50wyZLOpg== |
+
 **已实现事件：**
 
 当消息被创建时触发（message-created）

@@ -1,5 +1,5 @@
 import aiofiles
-import json
+import json5
 
 class Config:
     def __init__(self) -> None:
@@ -10,7 +10,7 @@ class Config:
     
     async def read_config(self):
         async with aiofiles.open('config.json', mode='r') as f:
-            json_dat = json.loads(await f.read())
+            json_dat = json5.loads(await f.read())
         self.botlist = json_dat["botlist"]
         self.web_port = json_dat["web_port"]
         self.web_host = json_dat["web_host"]
