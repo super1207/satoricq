@@ -312,7 +312,7 @@ class AdapterOnebot:
                 satori_evt = {
                     "id":self._id,
                     "type":"message-created",
-                    "platform":"satori",
+                    "platform":"onebot",
                     "self_id":str(evt["self_id"]),
                     "timestamp":int(str(evt["time"] ) + "000"),
                     "channel":channel_obj,
@@ -349,7 +349,7 @@ class AdapterOnebot:
                 satori_evt = {
                     "id":self._id,
                     "type":"message-created",
-                    "platform":"satori",
+                    "platform":"onebot",
                     "self_id":str(evt["self_id"]),
                     "timestamp":int(str(evt["time"] ) + "000"),
                     "channel":channel_obj,
@@ -381,7 +381,7 @@ class AdapterOnebot:
                 satori_evt = {
                     "id":self._id,
                     "type":"guild-member-added",
-                    "platform":"satori",
+                    "platform":"onebot",
                     "self_id":str(evt["self_id"]),
                     "timestamp":int(str(evt["time"] ) + "000"),
                     "guild":guild_obj,
@@ -444,7 +444,7 @@ class AdapterOnebot:
                 "is_bot":None
             },
             "self_id":str(obret["user_id"]),
-            "platform":"satori",
+            "platform":"onebot",
             "status":self._login_status,
         }
         if platform == None and self_id == None:

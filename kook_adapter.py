@@ -156,7 +156,7 @@ class AdapterKook:
         satori_evt = {
             "id":self._id,
             "type":"message-created",
-            "platform":"satori",
+            "platform":"kook",
             "self_id":self._self_id,
             "timestamp":data["msg_timestamp"],
             "channel":channel_obj,
@@ -201,7 +201,7 @@ class AdapterKook:
         satori_evt = {
             "id":self._id,
             "type":"message-created",
-            "platform":"satori",
+            "platform":"kook",
             "self_id":self._self_id,
             "timestamp":data["msg_timestamp"],
             "channel":channel_obj,
@@ -233,7 +233,7 @@ class AdapterKook:
         satori_evt = {
             "id":self._id,
             "type":"guild-member-added",
-            "platform":"satori",
+            "platform":"kook",
             "self_id":self._self_id,
             "timestamp":data["msg_timestamp"],
             "guild":guild_obj,
@@ -377,7 +377,7 @@ class AdapterKook:
                 "is_bot":None
             },
             "self_id":obret["id"],
-            "platform":"satori",
+            "platform":"kook",
             "status":self._login_status,
         }
         self._self_id = obret["id"]
