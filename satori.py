@@ -2,6 +2,7 @@ import asyncio
 
 import aiohttp
 from kook_adapter import AdapterKook
+from mihoyo_adapter import AdapterMihoyo
 from onebot_adapter import AdapterOnebot
 from config import Config
 from aiohttp import web
@@ -152,6 +153,8 @@ class Satori:
                 adapter = AdapterOnebot(botcfg)
             elif botcfg["platform"] == "kook":
                 adapter = AdapterKook(botcfg)
+            elif botcfg["platform"] == "mihoyo":
+                adapter = AdapterMihoyo(botcfg)
             if hasattr(adapter,"init_after"):
                 await adapter.init_after()
             if hasattr(adapter,"enable"):

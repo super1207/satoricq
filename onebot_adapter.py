@@ -5,7 +5,7 @@ from typing import Optional
 from asyncio import Queue
 import json
 
-from tool import get_json_or, parse_satori_html
+from tool import get_json_or, parse_satori_html, satori_to_plain
 
 def _cqmsg_to_arr(cqmsg) -> list:
     # 将 string 格式的 message 转化为 array 格式
@@ -205,7 +205,7 @@ class AdapterOnebot:
         ret = ""
         for node in cqarr:
             if node["type"] == "text":
-                ret += node["data"]["text"]
+                ret += satori_to_plain(node["data"]["text"])
             elif node["type"] == "at":
                 qq = node["data"]["qq"]
                 if qq == "all":
@@ -306,7 +306,7 @@ class AdapterOnebot:
                     "created_at":int(str(evt["time"] ) + "000")
                 }
                 role_obj = {
-                        "id":get_json_or(sender,"role","member"),
+                        "id":get_json_or(sender, "role","member"),
                         "name":get_json_or(sender,"role","member")
                     }
                 satori_evt = {

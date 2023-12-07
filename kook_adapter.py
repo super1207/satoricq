@@ -8,7 +8,7 @@ import json
 import time
 import re
 
-from tool import get_json_or, parse_satori_html
+from tool import *
 
 
 class AdapterKook:
@@ -17,7 +17,7 @@ class AdapterKook:
         self._access_token = config["access_token"]
         self._http_url = "https://www.kookapp.cn/api/v3"
         self._is_stop = False
-        self._login_status = 3  # DISCONNECT
+        self._login_status = SatoriLogin.LoginStatus.DISCONNECT
         self._queue = Queue(maxsize=100)
         self._id = 0
         self._sn = 0
@@ -52,7 +52,7 @@ class AdapterKook:
         async def _ws_server(self:AdapterKook) -> None:
             while not self._is_stop:
                 try:
-                    self._login_status = 2 # CONNECT
+                    self._login_status = SatoriLogin.LoginStatus.CONNECT
                     ws_url = (await self._api_call("/gateway/index?compress=0"))["url"]
                     async with connect(ws_url) as websocket:
                         tm = time.time()
@@ -69,7 +69,7 @@ class AdapterKook:
                                     elif js["s"] == 3:
                                         pass
                                     elif js["s"] == 1:
-                                        self._login_status = 1 # ONLINE
+                                        self._login_status = SatoriLogin.LoginStatus.ONLINE
                                         print("kook:ws连接成功")
                                 except asyncio.TimeoutError:
                                     if self._is_stop:
@@ -85,10 +85,11 @@ class AdapterKook:
                 except Exception as e:
                     print(e)
                     print("kook:ws连接已经断开")
-                    self._login_status = 3 # DISCONNECT
+                    self._login_status = SatoriLogin.LoginStatus.DISCONNECT
         asyncio.create_task(_ws_server(self))
 
     def _kook_msg_to_satori(self,msg_type:int,message:str)->str:
+        '''未完全完成 TODO'''
         ret = ""
         if msg_type == 2: #图片
             ret += "<img src={}/>".format(json.dumps(message))
@@ -114,60 +115,44 @@ class AdapterKook:
         author = extra["author"]
         msg_type  = data["type"]
 
-
         if msg_type == 10:#卡牌
             return
         satori_msg = self._kook_msg_to_satori(msg_type,kook_msg)
 
-        channel_obj = {
-                "id":"GROUP_"+group_id,
-                "type":0,
-                "name":extra["channel_name"],
-                "parent_id":None
-            }
-        guild_obj = {
-            "id":extra["guild_id"],
-            "name":None,
-            "avatar":None
-        }
-        user_obj = {
-            "id":author["id"],
-            "name":author["username"],
-            "nick":author["username"],
-            "avatar":author["avatar"],
-            "is_bot":author["bot"]
-        }
-        joined_at = None
-        member_obj = {
-            "nick":author["nickname"],
-            "avatar":author["avatar"],
-            "joined_at":joined_at
-        }
-        message_obj = {
-            "id":data["msg_id"],
-            "content":satori_msg,
-            "created_at":data["msg_timestamp"]
-        }
-        role = json.dumps(author["roles"])
-        role_obj = {
-            "id":role,
-            "name":role
-        }
-        satori_evt = {
-            "id":self._id,
-            "type":"message-created",
-            "platform":"kook",
-            "self_id":self._self_id,
-            "timestamp":data["msg_timestamp"],
-            "channel":channel_obj,
-            "guild":guild_obj,
-            "member":member_obj,
-            "message":message_obj,
-            "role":role_obj,
-            "user":user_obj
-        }
+        satori_evt = SatoriGroupMessageCreatedEvent(
+            id=self._id,
+            self_id=self._self_id,
+            timestamp=data["msg_timestamp"],
+            platform="kook",
+            channel=SatoriChannel(
+                id="GROUP_"+group_id,
+                type=SatoriChannel.ChannelType.TEXT,
+                name=extra["channel_name"]
+            ),
+            message=SatoriMessage(
+                id=data["msg_id"],
+                content=satori_msg,
+                created_at=data["msg_timestamp"]
+            ),
+            user=SatoriUser(
+                id=author["id"],
+                name=author["username"],
+                avatar=author["avatar"],
+                is_bot=author["bot"]
+            ),
+            member=SatoriGuildMember(
+                nick=author["nickname"],
+                avatar=author["avatar"]
+            ),
+            guild=SatoriGuild(
+                id=extra["guild_id"]
+            ),
+            role=SatoriGuildRole(
+                id=json.dumps(sorted(author["roles"]))
+            )
+        )
         self._id += 1
-        self._queue.put_nowait(satori_evt)
+        self._queue.put_nowait(satori_evt.to_dict())
 
     async def _deal_private_message_event(self,data,user_id:str):
 
@@ -180,65 +165,42 @@ class AdapterKook:
             return
         satori_msg = self._kook_msg_to_satori(msg_type,kook_msg)
 
-        channel_obj = {
-            "id":user_id,
-            "type":3,
-            "name":author["username"],
-            "parent_id":None
-        }
-        user_obj = {
-            "id":user_id,
-            "name":author["username"],
-            "nick":author["username"],
-            "avatar":author["avatar"],
-            "is_bot":author["bot"]
-        }
-        message_obj = {
-            "id":data["msg_id"],
-            "content":satori_msg,
-            "created_at":data["msg_timestamp"]
-        }
-        satori_evt = {
-            "id":self._id,
-            "type":"message-created",
-            "platform":"kook",
-            "self_id":self._self_id,
-            "timestamp":data["msg_timestamp"],
-            "channel":channel_obj,
-            "message":message_obj,
-            "user":user_obj
-        }
+        satori_evt = SatoriPrivateMessageCreatedEvent(
+            id=self._id,
+            self_id=self._self_id,
+            timestamp=data["msg_timestamp"],
+            channel=SatoriChannel(
+                id=user_id,
+                type=SatoriChannel.ChannelType.TEXT,
+                name=author["username"]
+            ),
+            message=SatoriMessage(
+                id=data["msg_id"],
+                content=satori_msg,
+                created_at=data["msg_timestamp"]
+            ),
+            user=SatoriUser(
+                id=user_id,
+                name=author["username"],
+                avatar=author["avatar"],
+                is_bot=author["bot"]
+            ),
+            platform="kook"
+        ).to_dict()
         self._id += 1
         self._queue.put_nowait(satori_evt)
 
     async def _deal_group_increase_event(self,data):
         extra = data["extra"]
-        guild_obj = {
-            "id":data["target_id"],
-            "name":None,
-            "avatar":None
-        }
-        member_obj = {
-            "nick":None,
-            "avatar":None,
-            "joined_at":extra["body"]["joined_at"]
-        }
-        user_obj = {
-            "id":extra["body"]["user_id"],
-            "name":None,
-            "nick":None,
-            "avatar":None,
-            "is_bot":None
-        }
         satori_evt = {
             "id":self._id,
             "type":"guild-member-added",
             "platform":"kook",
             "self_id":self._self_id,
             "timestamp":data["msg_timestamp"],
-            "guild":guild_obj,
-            "member":member_obj,
-            "user":user_obj
+            "guild":SatoriGuild(id=data["target_id"]).to_dict(),
+            "member":SatoriGuildMember(joined_at=extra["body"]["joined_at"]).to_dict(),
+            "user":SatoriUser(id=extra["body"]["user_id"]).to_dict()
         }
         self._id += 1
         self._queue.put_nowait(satori_evt)
@@ -356,30 +318,29 @@ class AdapterKook:
             to_ret = []
             for it in to_sends:
                 ret = await self._api_call("/message/create",{"content":it["content"],"type":it["type"],"target_id":channel_id})
-                to_ret.append({"id":ret["msg_id"],"content":""})
+                to_ret.append(SatoriMessage(id=ret["msg_id"],content="").to_dict())
             return to_ret
         else:
             to_ret = []
             for it in to_sends:
                 ret = await self._api_call("/direct-message/create",{"content":it["content"],"type":it["type"],"target_id":channel_id})
-                to_ret.append({"id":ret["msg_id"],"content":""})
+                to_ret.append(SatoriMessage(id=ret["msg_id"],content="").to_dict())
             return to_ret
     
     async def get_login(self,platform:Optional[str],self_id:Optional[str]) -> [dict]:
         '''获取登录信息，如果platform和self_id为空，那么应该返回一个列表'''
         obret =  (await self._api_call("/user/me"))
-        satori_ret = {
-            "user":{
-                "id":obret["id"],
-                "name":obret["username"],
-                "nick":obret["username"],
-                "avatar":get_json_or(obret,"avatar",None),
-                "is_bot":None
-            },
-            "self_id":obret["id"],
-            "platform":"kook",
-            "status":self._login_status,
-        }
+        satori_ret = SatoriLogin(
+            status=self._login_status,
+            user=SatoriUser(
+                id=obret["id"],
+                name=obret["username"],
+                avatar=get_json_or(obret,"avatar",None),
+                is_bot=True
+            ),
+            self_id=obret["id"],
+            platform="kook"
+        ).to_dict()
         self._self_id = obret["id"]
         if platform == None and self_id == None:
             return [satori_ret]
@@ -390,17 +351,15 @@ class AdapterKook:
         '''获取群组成员信息，如果platform和self_id为空，那么应该返回一个列表'''
         url = "/user/view?user_id={}&guild_id={}".format(user_id,guild_id)
         obret =  (await self._api_call(url))
-        joined_at = get_json_or(obret,"join_time",None)
-        satori_ret = {
-            "user":{
-                "id":obret["id"],
-                "name":get_json_or(obret,"username",None), # 用户昵称
-                "nick":get_json_or(obret,"username",None), # 用户昵称
-                "avatar":get_json_or(obret,"avatar",None),
-                "is_bot":get_json_or(obret,"bot",None)
-            },
-            "nick":get_json_or(obret,"nickname",None), # 用户在群组中的名字
-            "avatar":get_json_or(obret,"avatar",None),
-            "joined_at":joined_at,
-        }
+        satori_ret = SatoriGuildMember(
+            user=SatoriUser(
+                id=obret["id"],
+                name=get_json_or(obret,"username",None),
+                avatar=get_json_or(obret,"avatar",None),
+                is_bot=get_json_or(obret,"bot",None)
+            ),
+            nick=get_json_or(obret,"nickname",None),
+            avatar=get_json_or(obret,"avatar",None),
+            joined_at=get_json_or(obret,"join_time",None)
+        ).to_dict()
         return satori_ret
