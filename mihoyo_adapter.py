@@ -97,7 +97,7 @@ class AdapterMihoyo:
     async def _ws_connect(self):
         self._login_status = SatoriLogin.LoginStatus.CONNECT
         ws_dat = (await self._api_call("/vila/api/bot/platform/getWebsocketInfo"))
-        print(ws_dat)
+        # print(ws_dat)
         ws_url = ws_dat["websocket_url"]
         async with connect(ws_url) as websocket:
             await self._send_ws_pack(websocket,ws_dat,biztype=7)
@@ -407,4 +407,25 @@ class AdapterMihoyo:
             return [satori_ret]
         else:
             return satori_ret
-        
+
+    async def get_guild_member(self,platform:Optional[str],self_id:Optional[str],guild_id:str,user_id:str) -> [dict]:
+        '''获取群组成员信息'''
+        url = self._http_url + "/vila/api/bot/platform/getMember"
+        headers = {"x-rpc-bot_id":self._self_id,"x-rpc-bot_secret":self._secret,"x-rpc-bot_villa_id":guild_id}
+        async with httpx.AsyncClient() as client:
+            req = client.build_request("GET",url,json={
+                "uid":user_id
+            },headers=headers)
+            obret = (await client.send(req)).json()["data"]["member"]
+        satori_ret = SatoriGuildMember(
+            user=SatoriUser(
+                id=obret["basic"]["uid"],
+                name=obret["basic"]["nickname"],
+                avatar=obret["basic"]["avatar_url"],
+                is_bot=False
+            ),
+            nick=obret["basic"]["nickname"],
+            avatar=obret["basic"]["avatar_url"],
+            joined_at=int(obret["joined_at"] + "000")
+        ).to_dict()
+        return satori_ret
