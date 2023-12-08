@@ -1,3 +1,4 @@
+import traceback
 from urllib.parse import urlencode
 import httpx
 from websockets import connect
@@ -46,47 +47,50 @@ class AdapterKook:
     async def get_msg(self) -> dict:
         '''阻塞并等待消息返回，如果你的适配器不具备接收消息的能力，请不要写这个函数'''
         return await self._queue.get()
+    
+
+    async def _ws_recv(self,websocket):
+        try:
+            reply = await asyncio.wait_for(websocket.recv(),0.1)
+            return reply
+        except asyncio.TimeoutError:
+            return None
+
+    async def _ws_connect(self):
+        self._login_status = SatoriLogin.LoginStatus.CONNECT
+        ws_url = (await self._api_call("/gateway/index?compress=0"))["url"]
+        async with connect(ws_url) as websocket:
+            tm = time.time()
+            while not self._is_stop:
+                reply = await self._ws_recv(websocket)
+                if not reply:
+                    now_time = time.time()
+                    if now_time - tm > 30:
+                        tm = now_time
+                        asyncio.create_task(websocket.send(json.dumps({"s": 2,"sn": self._sn})))
+                    continue
+                js = json.loads(reply)
+                s = js["s"]
+                if s == 5:raise Exception("recv reset ws")
+                elif s == 3:pass # heartbeat
+                elif s == 1:
+                    self._login_status = SatoriLogin.LoginStatus.ONLINE
+                    print("kook:ws连接成功")
+                elif s == 0:
+                    self._sn = js["sn"]
+                    asyncio.create_task(self._event_deal(js["d"]))
+
+    async def _ws_server(self) -> None:
+        while not self._is_stop:
+            try:
+                await self._ws_connect()
+            except:
+                traceback.print_exc()
+                await asyncio.sleep(3)
 
     async def init_after(self) -> None:
         '''适配器创建之后会调用一次，应该在这里进行ws连接等操作，如果不需要，可以不写'''
-        async def _ws_server(self:AdapterKook) -> None:
-            while not self._is_stop:
-                try:
-                    self._login_status = SatoriLogin.LoginStatus.CONNECT
-                    ws_url = (await self._api_call("/gateway/index?compress=0"))["url"]
-                    async with connect(ws_url) as websocket:
-                        tm = time.time()
-                        try:
-                            while True:
-                                try:
-                                    reply = await asyncio.wait_for(websocket.recv(),0.1)
-                                    js = json.loads(reply)
-                                    if js["s"] == 5:
-                                        raise Exception("recv reset ws")
-                                    elif js["s"] == 0:
-                                        self._sn = js["sn"]
-                                        await self._event_deal(js["d"])
-                                    elif js["s"] == 3:
-                                        pass
-                                    elif js["s"] == 1:
-                                        self._login_status = SatoriLogin.LoginStatus.ONLINE
-                                        print("kook:ws连接成功")
-                                except asyncio.TimeoutError:
-                                    if self._is_stop:
-                                        await websocket.close()
-                                    if time.time() - tm > 30:
-                                        tm = time.time()
-                                        # print("发送KOOK心跳")
-                                        await websocket.send(json.dumps({"s": 2,"sn": self._sn}))
-                                except asyncio.QueueFull:
-                                    print("队列满")
-                        except Exception as e:
-                            print("err",e)
-                except Exception as e:
-                    print(e)
-                    print("kook:ws连接已经断开")
-                    self._login_status = SatoriLogin.LoginStatus.DISCONNECT
-        asyncio.create_task(_ws_server(self))
+        asyncio.create_task(self._ws_server())
 
     def _kook_msg_to_satori(self,msg_type:int,message:str)->str:
         '''未完全完成 TODO'''
@@ -94,17 +98,30 @@ class AdapterKook:
         if msg_type == 2: #图片
             ret += "<img src={}/>".format(json.dumps(message))
         else:
-            is_f = False
-            message2 = re.sub(r"\(met\)((\d+))\(met\)", "<at id=\"\\2\"/>", message)
-            message3 = re.sub(r"\(met\)((all))\(met\)", "<at type=\"\\2\"/>", message2)
-            for ch in message3:
-                if is_f:
-                    is_f = False
-                    ret += ch
-                elif ch == "\\":
-                    is_f = True
+            def kook_msg_f(msg):
+                ret = ""
+                is_f = False
+                for ch in msg:
+                    if is_f:
+                        is_f = False
+                        ret += ch
+                    elif ch == "\\":
+                        is_f = True
+                    else:
+                        ret += ch
+                return ret
+            
+            index = 0
+            msg_list = message.split("(met)")
+            for it in msg_list:
+                if index % 2 == 0:
+                    ret += satori_to_plain(kook_msg_f(it))
                 else:
-                    ret += ch
+                    if it == "all":
+                        ret += "<at type=\"all\"/>"
+                    else:
+                        ret += "<at id=\"\{}\"/>".format(it)
+                index += 1
         return ret
 
 

@@ -165,7 +165,7 @@ class AdapterMihoyo:
                             print("err",e)
                 except Exception as e:
                     print("err",e)
-                    print("kook:ws连接已经断开")
+                    print("mihoyo:ws连接已经断开")
                     self._login_status = SatoriLogin.LoginStatus.DISCONNECT
         asyncio.create_task(_ws_server(self))
 
