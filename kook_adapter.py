@@ -85,15 +85,16 @@ class AdapterKook:
             try:
                 await self._ws_connect()
             except:
+                self._login_status = SatoriLogin.LoginStatus.DISCONNECT
                 traceback.print_exc()
                 await asyncio.sleep(3)
-
+        self._login_status = SatoriLogin.LoginStatus.DISCONNECT
+        
     async def init_after(self) -> None:
         '''适配器创建之后会调用一次，应该在这里进行ws连接等操作，如果不需要，可以不写'''
         asyncio.create_task(self._ws_server())
 
     def _kook_msg_to_satori(self,msg_type:int,message:str)->str:
-        '''未完全完成 TODO'''
         ret = ""
         if msg_type == 2: #图片
             ret += "<img src={}/>".format(json.dumps(message))
