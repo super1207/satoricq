@@ -1,3 +1,4 @@
+import traceback
 import httpx
 from websockets import connect
 import asyncio
@@ -50,25 +51,30 @@ class AdapterMihoyo:
         '''阻塞并等待消息返回，如果你的适配器不具备接收消息的能力，请不要写这个函数'''
         return await self._queue.get()
 
-    async def _ws_login(self,ws,ws_dat):
+    async def _send_ws_pack(self,ws,ws_dat,biztype):
         magic = 0xBABEFACE.to_bytes(length=4, byteorder='little', signed=False)
-
-        pb_plogin = bytes(pbvb.PLogin(
-            uid=int(ws_dat["uid"]),
-            token=self._villa_id + "." + self._secret + "." + self._self_id,
-            platform=ws_dat["platform"],
-            app_id=ws_dat["app_id"],
-            device_id=ws_dat["device_id"]
-        ))
-
+        if biztype == 7:
+            pb_pack = bytes(pbvb.PLogin(
+                uid=int(ws_dat["uid"]),
+                token=self._villa_id + "." + self._secret + "." + self._self_id,
+                platform=ws_dat["platform"],
+                app_id=ws_dat["app_id"],
+                device_id=ws_dat["device_id"]
+            ))
+        elif biztype == 6:
+            pb_pack = bytes(pbvb.PHeartBeat(
+                client_timestamp=str(int(round(time.time() * 1000)))
+            ))
+        else:
+            raise Exception("unkonw biztype:{}".format(biztype))
+        
         wid = self._sn
         self._sn += 1
 
         flag = 1
-        biztype = 7
         appid = 104
         headerlen = 24
-        datalen = headerlen +  len(pb_plogin)
+        datalen = headerlen +  len(pb_pack)
 
         to_send = magic
         to_send += datalen.to_bytes(length=4, byteorder='little', signed=False)
@@ -77,103 +83,95 @@ class AdapterMihoyo:
         to_send += flag.to_bytes(length=4, byteorder='little', signed=False)
         to_send += biztype.to_bytes(length=4, byteorder='little', signed=False)
         to_send += appid.to_bytes(length=4, byteorder='little', signed=True)
-        to_send += pb_plogin
-
-        await ws.send(to_send)
-
-    async def _ws_heartbeat(self,ws,ws_dat):
-        magic = 0xBABEFACE.to_bytes(length=4, byteorder='little', signed=False)
-
-        pb_plogin = bytes(pbvb.PHeartBeat(
-            client_timestamp=str(int(round(time.time() * 1000)))
-        ))
-
-        wid = self._sn
-        self._sn += 1
-
-        flag = 1
-        biztype = 6
-        appid = 104
-        headerlen = 24
-        datalen = headerlen +  len(pb_plogin)
-
-        to_send = magic
-        to_send += datalen.to_bytes(length=4, byteorder='little', signed=False)
-        to_send += headerlen.to_bytes(length=4, byteorder='little', signed=False)
-        to_send += wid.to_bytes(length=8, byteorder='little', signed=False)
-        to_send += flag.to_bytes(length=4, byteorder='little', signed=False)
-        to_send += biztype.to_bytes(length=4, byteorder='little', signed=False)
-        to_send += appid.to_bytes(length=4, byteorder='little', signed=True)
-        to_send += pb_plogin
+        to_send += pb_pack
 
         await ws.send(to_send)
         
-        
-    async def init_after(self) -> None:
-        '''适配器创建之后会调用一次，应该在这里进行ws连接等操作，如果不需要，可以不写'''
-        async def _ws_server(self:AdapterMihoyo) -> None:
+    async def _ws_recv(self,websocket):
+        try:
+            reply = await asyncio.wait_for(websocket.recv(),0.1)
+            return reply
+        except asyncio.TimeoutError:
+            return None
+
+    async def _ws_connect(self):
+        self._login_status = SatoriLogin.LoginStatus.CONNECT
+        ws_dat = (await self._api_call("/vila/api/bot/platform/getWebsocketInfo"))
+        print(ws_dat)
+        ws_url = ws_dat["websocket_url"]
+        async with connect(ws_url) as websocket:
+            await self._send_ws_pack(websocket,ws_dat,biztype=7)
+            tm = time.time()
             while not self._is_stop:
-                try:
-                    self._login_status = SatoriLogin.LoginStatus.CONNECT
-                    ws_dat = (await self._api_call("/vila/api/bot/platform/getWebsocketInfo"))
-                    async with connect(ws_dat["websocket_url"]) as websocket:
-                        # print("mihoyo","ws连接")
-                        await self._ws_login(websocket,ws_dat)
-                        tm = time.time()
-                        try:
-                            while True:
-                                try:
-                                    reply = await asyncio.wait_for(websocket.recv(),0.1)
-                                    biztype = int.from_bytes(reply[24:28],byteorder='little',signed=False)
-                                    # print("biztype",biztype)
-                                    if biztype == 7: # 登录返回
-                                        login_reply = pbvb.PLoginReply().parse(reply[32:])
-                                        if login_reply.code == 0:
-                                            print("mihoyo:ws连接成功")
-                                            self._login_status = SatoriLogin.LoginStatus.ONLINE
-                                            continue
-                                        else:
-                                            print("mihoyo:ws连接失败",login_reply.to_json())
-                                            break
-                                    elif biztype == 53:
-                                        print("mihoyo:ws被踢下线")
-                                        pkoff = pbvb.PKickOff().parse(reply[32:])
-                                        print("mihoyo:" + pkoff.reason)
-                                        break
-                                    elif biztype == 52:
-                                        print("mihoyo:ws服务关机")
-                                        break
-                                    elif biztype == 6: # 心跳
-                                        heart_reply = pbvb.PHeartBeatReply().parse(reply[32:])
-                                        if heart_reply.code != 0:
-                                            print("mihoyo:ws心跳失败")
-                                            break
-                                    elif biztype == 30001: # 正常处理
-                                        evt = pbvb.RobotEvent().parse(reply[32:]).to_dict()
-                                        # print(json.dumps(evt))
-                                        await self._event_deal(evt)
-                                        
-                                except asyncio.TimeoutError:
-                                    if self._is_stop:
-                                        await websocket.close()
-                                    if time.time() - tm > 20:
-                                        tm = time.time()
-                                        await self._ws_heartbeat(websocket,ws_dat)
-                                except asyncio.QueueFull:
-                                    print("队列满")
-                        except Exception as e:
-                            print("err",e)
-                except Exception as e:
-                    print("err",e)
-                    print("mihoyo:ws连接已经断开")
-                    self._login_status = SatoriLogin.LoginStatus.DISCONNECT
-        asyncio.create_task(_ws_server(self))
+                reply = await self._ws_recv(websocket)
+                if not reply:
+                    now_time = time.time()
+                    if now_time - tm > 30:
+                        tm = now_time
+                        await self._send_ws_pack(websocket,ws_dat,biztype=6)
+                    continue
+                biztype = int.from_bytes(reply[24:28],byteorder='little',signed=False)
+                if biztype == 7: # 登录返回
+                    login_reply = pbvb.PLoginReply().parse(reply[32:])
+                    if login_reply.code == 0:
+                        print("mihoyo:ws连接成功")
+                        self._login_status = SatoriLogin.LoginStatus.ONLINE
+                        continue
+                    else:
+                        print("mihoyo:ws连接失败",login_reply.to_json())
+                        break
+                elif biztype == 53:
+                    print("mihoyo:ws被踢下线")
+                    pkoff = pbvb.PKickOff().parse(reply[32:])
+                    print("mihoyo:" + pkoff.reason)
+                    break
+                elif biztype == 52:
+                    print("mihoyo:ws服务关机")
+                    break
+                elif biztype == 6:
+                    heart_reply = pbvb.PHeartBeatReply().parse(reply[32:])
+                    if heart_reply.code != 0:
+                        print("mihoyo:ws心跳失败")
+                        break
+                elif biztype == 30001: # 正常处理
+                    evt = pbvb.RobotEvent().parse(reply[32:]).to_dict()
+                    asyncio.create_task(self._event_deal(evt))
+
+    async def _ws_server(self) -> None:
+        while not self._is_stop:
+            try:
+                await self._ws_connect()
+            except:
+                self._login_status = SatoriLogin.LoginStatus.DISCONNECT
+                traceback.print_exc()
+                await asyncio.sleep(3)
+        self._login_status = SatoriLogin.LoginStatus.DISCONNECT
+
+    async def init_after(self) -> None:
+        asyncio.create_task(self._ws_server())
 
     def _mihoyo_msg_to_satori(self,content_obj)->str:
-        '''未完全完成 TODO'''
-        return content_obj["content"]["text"]
-
-
+        ret = ""
+        entities = content_obj["content"]["entities"]
+        text = content_obj["content"]["text"]
+        l = len(text)
+        i = 0
+        while i < l:
+            for en in entities:
+                if en["offset"] == i:
+                    print(en)
+                    i += en["length"]
+                    if en["entity"]["type"] == "mention_all": # 实际上收不到
+                        ret += "<at type=\"all\"/>"
+                    elif en["entity"]["type"] == "mentioned_robot":
+                        ret += "<at id=\"{}\"/>".format(en["entity"]["bot_id"])
+                    elif en["entity"]["type"] == "mentioned_user":
+                        ret += "<at id=\"{}\"/>".format(en["entity"]["user_id"])
+                    break
+            else:
+                ret += satori_to_plain(text[i])
+                i += 1
+        return ret
     async def _deal_group_message_event(self,data):
         extendData = data["extendData"]
 
@@ -225,18 +223,21 @@ class AdapterMihoyo:
         self._queue.put_nowait(satori_evt.to_dict())
 
     async def _event_deal(self,data:dict):
-        event_type = data["type"]
-        if event_type == "SendMessage":
-            await self._deal_group_message_event(data)
+        try:
+            event_type = data["type"]
+            if event_type == "SendMessage":
+                await self._deal_group_message_event(data)
+        except:
+            print(traceback.format_exc())
 
     
     async def _api_call(self,path,data = None,villa_id = 0) -> dict:
         url:str = self._http_url + path
-        # print(url)
+        headers = {"x-rpc-bot_id":self._self_id,"x-rpc-bot_secret":self._secret}
         if villa_id == 0:
-            headers = {"x-rpc-bot_id":self._self_id,"x-rpc-bot_secret":self._secret,"x-rpc-bot_villa_id":self._villa_id}
+            headers["x-rpc-bot_villa_id"] = self._villa_id
         else:
-            headers = {"x-rpc-bot_id":self._self_id,"x-rpc-bot_secret":self._secret,"x-rpc-bot_villa_id":villa_id}
+            headers["x-rpc-bot_villa_id"] = villa_id
         if data == None:
             async with httpx.AsyncClient() as client:
                 return (await client.get(url,headers=headers)).json()["data"]
@@ -244,7 +245,8 @@ class AdapterMihoyo:
             headers["Content-Type"] = "application/json"
             async with httpx.AsyncClient() as client:
                 ret =  (await client.post(url,headers=headers,data=data)).json()
-                # print(ret)
+                if ret["retcode"] != 0:
+                    print("mihoyo:",ret)
                 return ret["data"]
 
     
@@ -392,7 +394,6 @@ class AdapterMihoyo:
     
     async def get_login(self,platform:Optional[str],self_id:Optional[str]) -> [dict]:
         '''获取登录信息，如果platform和self_id为空，那么应该返回一个列表'''
-        # obret =  (await self._api_call("/user/me"))
         satori_ret = SatoriLogin(
             status=self._login_status,
             user=SatoriUser(

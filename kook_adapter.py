@@ -67,7 +67,7 @@ class AdapterKook:
                     now_time = time.time()
                     if now_time - tm > 30:
                         tm = now_time
-                        asyncio.create_task(websocket.send(json.dumps({"s": 2,"sn": self._sn})))
+                        await websocket.send(json.dumps({"s": 2,"sn": self._sn}))
                     continue
                 js = json.loads(reply)
                 s = js["s"]
@@ -86,10 +86,10 @@ class AdapterKook:
                 await self._ws_connect()
             except:
                 self._login_status = SatoriLogin.LoginStatus.DISCONNECT
-                traceback.print_exc()
+                print(traceback.format_exc())
                 await asyncio.sleep(3)
         self._login_status = SatoriLogin.LoginStatus.DISCONNECT
-        
+
     async def init_after(self) -> None:
         '''适配器创建之后会调用一次，应该在这里进行ws连接等操作，如果不需要，可以不写'''
         asyncio.create_task(self._ws_server())
@@ -121,7 +121,7 @@ class AdapterKook:
                     if it == "all":
                         ret += "<at type=\"all\"/>"
                     else:
-                        ret += "<at id=\"\{}\"/>".format(it)
+                        ret += "<at id=\"{}\"/>".format(it)
                 index += 1
         return ret
 
@@ -249,11 +249,14 @@ class AdapterKook:
 
 
     async def _event_deal(self,data:dict):
-        tp = data["channel_type"]
-        if tp == "GROUP":
-            await self._deal_group_evt(data)
-        else:
-            await self._deal_person_evt(data)
+        try:
+            tp = data["channel_type"]
+            if tp == "GROUP":
+                await self._deal_group_evt(data)
+            else:
+                await self._deal_person_evt(data)
+        except:
+            print(traceback.format_exc())
     
     async def _api_call(self,path,data = None) -> dict:
         url:str = self._http_url + path
@@ -366,7 +369,7 @@ class AdapterKook:
             return satori_ret
         
     async def get_guild_member(self,platform:Optional[str],self_id:Optional[str],guild_id:str,user_id:str) -> [dict]:
-        '''获取群组成员信息，如果platform和self_id为空，那么应该返回一个列表'''
+        '''获取群组成员信息'''
         url = "/user/view?user_id={}&guild_id={}".format(user_id,guild_id)
         obret =  (await self._api_call(url))
         satori_ret = SatoriGuildMember(

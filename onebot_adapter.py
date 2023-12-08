@@ -398,6 +398,7 @@ class AdapterOnebot:
         else:
             headers = {}
         async with httpx.AsyncClient() as client:
+            headers["Content-Type"] = "application/json"
             return (await client.post(url,headers=headers,data=data)).json()
     
     async def _satori_to_cq(self,satori_obj) -> str:
@@ -453,7 +454,7 @@ class AdapterOnebot:
             return satori_ret
         
     async def get_guild_member(self,platform:Optional[str],self_id:Optional[str],guild_id:str,user_id:str) -> [dict]:
-        '''获取群组成员信息，如果platform和self_id为空，那么应该返回一个列表'''
+        '''获取群组成员信息'''
         obret =  (await self._api_call("/get_group_member_info",{
             "group_id":int(guild_id[6:]),
             "user_id":int(user_id)
