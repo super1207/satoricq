@@ -8,6 +8,7 @@ from config import Config
 from aiohttp import web
 import json
 import uuid
+from qq_adapter import AdapterQQ
 
 from tool import remove_json_null
 
@@ -155,6 +156,8 @@ class Satori:
                 adapter = AdapterKook(botcfg)
             elif botcfg["platform"] == "mihoyo":
                 adapter = AdapterMihoyo(botcfg)
+            elif botcfg["platform"] == "qq":
+                adapter = AdapterQQ(botcfg)
             if hasattr(adapter,"init_after"):
                 await adapter.init_after()
             if hasattr(adapter,"enable"):

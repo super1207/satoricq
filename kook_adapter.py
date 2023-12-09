@@ -1,5 +1,4 @@
 import traceback
-from urllib.parse import urlencode
 import httpx
 from websockets import connect
 import asyncio
@@ -298,7 +297,7 @@ class AdapterKook:
                     if type == "all":
                         text = "(met)all(met)"
                     elif id != None:
-                        text = "(met){}(met)".format(id)
+                        text = "(met){}(met)".format(self._make_kook_text(id))
                     if last_type == 1 and len(to_send_data) != 0:
                         l = len(to_send_data)
                         to_send_data[l - 1]["content"] += text
