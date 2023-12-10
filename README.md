@@ -12,7 +12,7 @@ All To Satori！
 
 为什么叫SatoriCQ：不知道，以后再想想，总能想出点意义来。
 
-项目进展：OneBot、KOOK、大别野（mihoyo）部分已经可用了。目前，还不能对接Koishi的Satori Adapter插件，原因未知。现在你可以用[satori-python](https://github.com/RF-Tar-Railt/satori-python) 来体验satoricq。
+项目进展：OneBot、KOOK、大别野（mihoyo），qq频道部分已经可用了。目前，还不能对接Koishi的Satori Adapter插件，原因未知。现在你可以用[satori-python](https://github.com/RF-Tar-Railt/satori-python) 来体验satoricq。
 
 ## 示例 config.json
 
@@ -119,16 +119,15 @@ WebHook（暂未实现）
 获取群组成员（群组成员）
 
 
-## mihoyo -> satori
-
-注意：需要在米哈游后台开启websocket回调
+## qq -> satori
 
 | 字段名          | 类型 | 默认值 | 说明                                                    | 例子                                  |
 |--------------|----|-----|-------------------------------------------------------|-------------------------------------|
-| platform     | 文本 | -   | 固定为mihoyo  | mihoyo                                |
-| bot_id | 文本 | -   | mihoyo平台的bot_id | bot_xxxxx |
-| secret | 文本 | -   | mihoyo平台的secret | xxxxxxxxxxxxxxxxxxxxx |
-| villa_id | 文本 | -   | mihoyo平台的villa_id(此配置项尚有争议，未来可能会有所变动) | 15881 |
+| platform     | 文本 | -   | 固定为qq  | qq                                |
+| botqq | 文本 | -   | qq平台的botqq | xxxxxxxxxxxxxxxxxxxxx |
+| appid | 文本 | -   | qq平台的appid | xxxxxxxxxxxxxxxxxxxxx |
+| token | 文本 | -   | qq平台的token| xxxxxxxxxxxxxxxxxxxxx |
+| appsecret | 文本 | -   | qq平台的appsecret | xxxxxxxxxxxxxxxxxxxxx |
 
 **已实现事件：**
 
@@ -136,9 +135,9 @@ WebHook（暂未实现）
 
 **已实现消息元素类型：**
 
-收：文本、at、at全体（实际收不到）、图片（实际收不到）
+收：文本、at、at全体（实际收不到）
 
-发：文本、at、at全体、图片
+发：文本、at、at全体（实际发不出）、图片
 
 **已实现API：**
 
