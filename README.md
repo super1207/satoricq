@@ -12,7 +12,7 @@ All To Satori！
 
 为什么叫SatoriCQ：不知道，以后再想想，总能想出点意义来。
 
-项目进展：OneBot、KOOK、大别野（mihoyo），qq频道部分已经可用了。目前，还不能对接Koishi的Satori Adapter插件，原因未知。现在你可以用[satori-python](https://github.com/RF-Tar-Railt/satori-python) 来体验satoricq。
+项目进展：OneBot、KOOK、大别野（mihoyo），qq部分已经可用了。目前，还不能对接Koishi的Satori Adapter插件，原因未知。现在你可以用[satori-python](https://github.com/RF-Tar-Railt/satori-python) 来体验satoricq。
 
 ## 示例 config.json
 
@@ -121,23 +121,26 @@ WebHook（暂未实现）
 
 ## qq -> satori
 
+注意：目前，无论是私域还是公域，群聊还是频道，均需要at bot才能使bot收到事件。
+
 | 字段名          | 类型 | 默认值 | 说明                                                    | 例子                                  |
 |--------------|----|-----|-------------------------------------------------------|-------------------------------------|
 | platform     | 文本 | -   | 固定为qq  | qq                                |
 | botqq | 文本 | -   | qq平台的botqq | xxxxxxxxxxxxxxxxxxxxx |
 | appid | 文本 | -   | qq平台的appid | xxxxxxxxxxxxxxxxxxxxx |
 | token | 文本 | -   | qq平台的token| xxxxxxxxxxxxxxxxxxxxx |
-| appsecret | 文本 | -   | qq平台的appsecret | xxxxxxxxxxxxxxxxxxxxx |
+| appsecret | 文本 | - | qq平台的appsecret | xxxxxxxxxxxxxxxxxxxxx |
+| withgroup | 文本 | False | 是否接收QQ群消息，若你的账号没有这个权限，请不要开启，目前仅少部分账号和企业号有此权限 | True |
 
 **已实现事件：**
 
-当消息被创建时触发（message-created）
+当消息被创建时触发（message-created）（目前支持群聊和频道，暂不支持单聊）
 
 **已实现消息元素类型：**
 
-收：文本、at、at全体（实际收不到）
+收：文本、at（仅频道支持）、at全体（实际收不到）
 
-发：文本、at、at全体（实际发不出）、图片
+发：文本、at（仅频道支持）、at全体（实际发不出）、图片（仅频道支持）
 
 **已实现API：**
 
@@ -147,4 +150,4 @@ WebHook（暂未实现）
 
 发送消息（消息）
 
-获取群组成员（群组成员）
+获取群组成员（群组成员）（目前仅支持频道）

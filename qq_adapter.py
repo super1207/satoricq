@@ -71,13 +71,17 @@ class AdapterQQ:
         self._botqq = config["botqq"]
         self._appid = config["appid"]
         self._token = config["token"]
+        if "withgroup" in config:
+            self._withgroup = config["withgroup"]
+        else:
+            self._withgroup = None
         self._appsecret = config["appsecret"]
         self._http_url = "https://api.sgroup.qq.com"
         self._is_stop = False
         self._login_status = SatoriLogin.LoginStatus.DISCONNECT
         self._queue = Queue(maxsize=100)
         self._id = 0
-        self._sn = 0
+        self._sn = None
         self._self_id = None
         self._access_token = None
         self._expires_in = 0
@@ -136,9 +140,10 @@ class AdapterQQ:
                     t = js["t"]
                     if t == "READY":
                         print("qq:ws连接成功")
+                        print(json.dumps(js))
                         self._login_status = SatoriLogin.LoginStatus.ONLINE
                     else:
-                        # print(json.dumps(js))
+                        print(json.dumps(js))
                         asyncio.create_task(self._deal_event(js))
                 elif op == 1: # 心跳
                     await websocket.send(json.dumps({"op":11}))
@@ -149,14 +154,24 @@ class AdapterQQ:
                     print("qq:参数错误:",json.dumps(js))
                     break
                 elif op == 10: # ws建立成功
-                    await websocket.send(json.dumps({
-                        "op":2,
-                        "d":{
-                            "token":"QQBot {}".format(self._access_token),
-                            "intents":0 | (1 << 0) | (1 << 1) | (1 << 30),
-                            "shard":[0, 1],
-                        }
-                    }))
+                    if self._withgroup:
+                        await websocket.send(json.dumps({
+                            "op":2,
+                            "d":{
+                                "token":"QQBot {}".format(self._access_token),
+                                "intents":0 | (1 << 0) | (1 << 1) | (1 << 30) | (1 << 25),
+                                "shard":[0, 1],
+                            }
+                        }))
+                    else:
+                        await websocket.send(json.dumps({
+                            "op":2,
+                            "d":{
+                                "token":"QQBot {}".format(self._access_token),
+                                "intents":0 | (1 << 0) | (1 << 1) | (1 << 30),
+                                "shard":[0, 1],
+                            }
+                        }))
                 elif op == 11: # HTTP Callback ACK
                     pass
 
@@ -236,6 +251,41 @@ class AdapterQQ:
         self._id += 1
         self._queue.put_nowait(satori_evt.to_dict())
 
+    async def _deal_group_event(self,data):
+        qqmsg_arr = _qqmsg_to_arr(data["content"])
+        # print("qqmsg_arr",qqmsg_arr)
+        satori_msg = await self._qqarr_to_satori(qqmsg_arr)
+        self.msgid_map["GROUP_"+data["group_id"]] = data["id"]
+        satori_evt = SatoriGroupMessageCreatedEvent(
+            id=self._id,
+            self_id=self._botqq,
+            timestamp=int(time.mktime(time.strptime(data["timestamp"], "%Y-%m-%dT%H:%M:%S%z"))) * 1000,
+            platform="qq_group",
+            channel=SatoriChannel(
+                id="GROUP_"+data["group_id"],
+                type=SatoriChannel.ChannelType.TEXT,
+            ),
+            message=SatoriMessage(
+                id=data["id"],
+                content=satori_msg,
+                created_at=int(time.mktime(time.strptime(data["timestamp"], "%Y-%m-%dT%H:%M:%S%z"))) * 1000
+            ),
+            user=SatoriUser(
+                id=data["author"]["id"]
+            ),
+            member=SatoriGuildMember(
+            ),
+            guild=SatoriGuild(
+                id="GROUP_"+data["group_id"]
+            ),
+            role=SatoriGuildRole(
+                id="unkonw",
+                name="unkonw"
+            )
+        )
+        self._id += 1
+        self._queue.put_nowait(satori_evt.to_dict())
+
     async def _deal_event(self,event):
         try:
             type = event["t"]
@@ -243,6 +293,11 @@ class AdapterQQ:
                 d = event["d"]
                 if ("channel_id" in d) and d["channel_id"]:
                     await self._deal_channel_event(d)
+            else:
+                if type == "GROUP_AT_MESSAGE_CREATE":
+                    d = event["d"]
+                    if ("group_id" in d) and d["group_id"]:
+                        await self._deal_group_event(d)
         except:
             print(traceback.format_exc())
 
@@ -288,7 +343,7 @@ class AdapterQQ:
         ret = ret.replace(">","&gt;")
         return ret
     
-    async def _satori_to_qq(self,satori_obj) -> [dict]:
+    async def _satori_to_qq(self,satori_obj,platform = "qq_guild") -> [dict]:
         ret_text = ""
         ret_img = []
         for node in satori_obj:
@@ -312,9 +367,12 @@ class AdapterQQ:
                         img_content = base64.b64decode(img_url[base64_start + 7:])
                         ret_img.append(img_content)
                     else:
-                        async with httpx.AsyncClient() as client:
-                            img_content =  (await client.get(img_url)).content
-                            ret_img.append(img_content)
+                        if platform == "qq_guild":
+                            async with httpx.AsyncClient() as client:
+                                img_content =  (await client.get(img_url)).content
+                                ret_img.append(img_content)
+                        else:
+                            ret_img.append(img_url)
                     
         ret_vec = []
         ret_vec.append({
@@ -334,10 +392,10 @@ class AdapterQQ:
         '''发送消息'''
         to_reply_id = self.msgid_map[channel_id]
         satori_obj = parse_satori_html(content)
-        to_sends = await self._satori_to_qq(satori_obj)
+        to_sends = await self._satori_to_qq(satori_obj,platform)
         # print(to_sends)
-        if channel_id.startswith("CHANNEL_"):
-            channel_id = int(channel_id[8:])
+        if channel_id.startswith("CHANNEL_") and platform == "qq_guild":
+            channel_id = channel_id[8:]
             to_ret = []
             for it in to_sends:
                 async with httpx.AsyncClient() as client:
@@ -354,41 +412,84 @@ class AdapterQQ:
                     # print(ret)
                     to_ret.append(SatoriMessage(id=ret["id"],content="").to_dict())
             return to_ret
+        elif channel_id.startswith("GROUP_") and platform == "qq_group":
+            channel_id = channel_id[6:]
+            to_ret = []
+            msg_seq = 1
+            for it in to_sends:
+                async with httpx.AsyncClient() as client:
+                    headers = {"Authorization":"QQBot {}".format(self._access_token),"X-Union-Appid":self._appid,"Accept":"application/json"}
+                    url:str = self._http_url + "/v2/groups/{}/messages".format(channel_id)
+                    data = {
+                        "msg_id":to_reply_id,
+                        "content":it["content"],
+                        "msg_type":0,
+                        "msg_seq":msg_seq,
+                        # "image": 目前暂不支持
+                    }
+                    msg_seq += 1
+                    ret = (await client.post(url,headers=headers,json=data)).json()
+                    print(ret)
+                    to_ret.append(SatoriMessage(id=ret["msg_id"],content="").to_dict())
+            return to_ret
     
     async def get_login(self,platform:Optional[str],self_id:Optional[str]) -> [dict]:
         '''获取登录信息，如果platform和self_id为空，那么应该返回一个列表'''
-        obret =  (await self._api_call("/users/@me"))
-        satori_ret = SatoriLogin(
-            status=self._login_status,
-            user=SatoriUser(
-                id=obret["id"],
-                name=obret["username"],
-                avatar=obret["avatar"],
-                is_bot=True
-            ),
-            self_id=obret["id"],
-            platform="qq_guild"
-        ).to_dict()
 
-        self._self_id = obret["id"]
-        if platform == None and self_id == None:
-            return [satori_ret]
-        else:
-            return satori_ret
+        if platform == "qq_group":
+                return SatoriLogin(
+                    status=self._login_status,
+                    user=SatoriUser(
+                        id=self._botqq,
+                        is_bot=True
+                    ),
+                    self_id=self._botqq,
+                    platform="qq_group"
+                ).to_dict()
+        else: 
+            obret =  (await self._api_call("/users/@me"))
+            satori_ret = SatoriLogin(
+                status=self._login_status,
+                user=SatoriUser(
+                    id=obret["id"],
+                    name=obret["username"],
+                    avatar=obret["avatar"],
+                    is_bot=True
+                ),
+                self_id=obret["id"],
+                platform="qq_guild"
+            ).to_dict()
+            self._self_id = obret["id"]
+            if platform == "qq_guild":
+                return satori_ret
+            elif platform == None:
+                if not self._withgroup:
+                    return [satori_ret]
+                else:
+                    return [satori_ret,SatoriLogin(
+                    status=self._login_status,
+                    user=SatoriUser(
+                        id=self._botqq,
+                        is_bot=True
+                    ),
+                    self_id=self._botqq,
+                    platform="qq_group"
+                ).to_dict()]
         
     async def get_guild_member(self,platform:Optional[str],self_id:Optional[str],guild_id:str,user_id:str) -> [dict]:
         '''获取群组成员信息'''
-        url = "/guilds/{}/members/{}".format(guild_id,user_id)
-        obret =  (await self._api_call(url))
-        satori_ret = SatoriGuildMember(
-            user=SatoriUser(
-                id=obret["user"]["id"],
-                name=obret["user"]["username"],
+        if platform == "qq_guild":
+            url = "/guilds/{}/members/{}".format(guild_id,user_id)
+            obret =  (await self._api_call(url))
+            satori_ret = SatoriGuildMember(
+                user=SatoriUser(
+                    id=obret["user"]["id"],
+                    name=obret["user"]["username"],
+                    avatar=obret["user"]["avatar"],
+                    is_bot=obret["user"]["bot"]
+                ),
+                nick=get_json_or(obret,"nick",None),
                 avatar=obret["user"]["avatar"],
-                is_bot=obret["user"]["bot"]
-            ),
-            nick=get_json_or(obret,"nick",None),
-            avatar=obret["user"]["avatar"],
-            joined_at=int(time.mktime(time.strptime(obret["joined_at"], "%Y-%m-%dT%H:%M:%S%z"))) * 1000
-        ).to_dict()
-        return satori_ret
+                joined_at=int(time.mktime(time.strptime(obret["joined_at"], "%Y-%m-%dT%H:%M:%S%z"))) * 1000
+            ).to_dict()
+            return satori_ret
