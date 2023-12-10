@@ -4,7 +4,7 @@ import asyncio
 from typing import Optional
 from asyncio import Queue
 import json
-
+import base64
 from tool import get_json_or, parse_satori_html, satori_to_plain
 
 def _cqmsg_to_arr(cqmsg) -> list:
@@ -398,7 +398,7 @@ class AdapterOnebot:
         else:
             headers = {}
         async with httpx.AsyncClient() as client:
-            headers["Content-Type"] = "application/json"
+            # headers["Content-Type"] = "application/json"
             return (await client.post(url,headers=headers,data=data)).json()
     
     async def _satori_to_cq(self,satori_obj) -> str:
@@ -415,7 +415,11 @@ class AdapterOnebot:
                     elif id != None:
                         ret += "[CQ:at,qq={}]".format(_cq_params_encode(id))
                 elif node["type"] == "img":
-                    ret += "[CQ:image,file={}]".format(_cq_params_encode(node["attrs"]["src"])) 
+                    img_url = node["attrs"]["src"]
+                    if img_url.startswith("data:image/"):
+                        base64_start = img_url.find("base64,")
+                        img_url = "base64://" + img_url[base64_start + 7:]
+                    ret += "[CQ:image,file={}]".format(_cq_params_encode(img_url)) 
 
         return ret
 

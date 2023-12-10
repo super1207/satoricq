@@ -171,38 +171,25 @@ class AdapterQQ:
     
     async def _satori_to_qq(self,satori_obj) -> [dict]:
         to_send_data = []
-        last_type = 1
+        ret_text = ""
+        ret_img = []
         for node in satori_obj:
             if isinstance(node,str):
                 text = self._make_qq_text(node)
-                if last_type == 1 and len(to_send_data) != 0:
-                    l = len(to_send_data)
-                    to_send_data[l - 1]["content"] += text
-                else:
-                    to_send_data.append({
-                        "type":1,
-                        "content":text
-                    })
-                    last_type = 1
+                ret_text += text
             else:
                 if node["type"] == "at":
                     type = get_json_or(node["attrs"],"type",None)
                     id = get_json_or(node["attrs"],"id",None)
                     if type == "all":
                         # 注意，机器人不支持at all，不能发，也不能收，这里假装at all了
-                        text = "@全体成员"
+                        ret_text += "@全体成员"
                         # text = "<@everyone>"
                     elif id != None:
-                        text = "<@{}>".format(self._make_qq_text(id))
-                    if last_type == 1 and len(to_send_data) != 0:
-                        l = len(to_send_data)
-                        to_send_data[l - 1]["content"] += text
-                    else:
-                        to_send_data.append({
-                            "type":1,
-                            "content":text
-                        })
-                        last_type = 1
+                        ret_text += "<@{}>".format(self._make_qq_text(id))
+                # elif node["type"] == "img":
+                #     ret_img += 
+
         return to_send_data
     
     async def create_message(self,platform:str,self_id:str,channel_id:str,content:str):

@@ -6,7 +6,7 @@ from typing import Optional
 from asyncio import Queue
 import json
 import time
-import re
+import base64
 
 from tool import *
 
@@ -313,8 +313,12 @@ class AdapterKook:
                     if img_url.startswith("https://img.kookapp.cn"):
                         kook_img_url = img_url
                     else:
-                        async with httpx.AsyncClient() as client:
-                            img_content =  (await client.get(img_url)).content
+                        if img_url.startswith("data:image/"):
+                            base64_start = img_url.find("base64,")
+                            img_content = base64.b64decode(img_url[base64_start + 7:])
+                        else:
+                            async with httpx.AsyncClient() as client:
+                                img_content =  (await client.get(img_url)).content
                         files = {
                             'file':('test',img_content)
                         }

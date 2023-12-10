@@ -8,6 +8,7 @@ import json
 import time
 import hashlib
 import imghdr
+import base64
 
 from tool import *
 
@@ -629,9 +630,12 @@ class AdapterMihoyo:
                 elif node["type"] == "img":
                     img_url:str = node["attrs"]["src"]
                     mihoyo_img_url = ""
-
-                    async with httpx.AsyncClient() as client:
-                        img_content =  (await client.get(img_url)).content
+                    if img_url.startswith("data:image/"):
+                        base64_start = img_url.find("base64,")
+                        img_content = base64.b64decode(img_url[base64_start + 7:])
+                    else:
+                        async with httpx.AsyncClient() as client:
+                            img_content =  (await client.get(img_url)).content
                     ext = imghdr.what(file = "",h=img_content)
                     m = hashlib.md5()
                     m.update(img_content)
