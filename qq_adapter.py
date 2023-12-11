@@ -344,6 +344,7 @@ class AdapterQQ:
         return ret
     
     async def _satori_to_qq(self,satori_obj,platform = "qq_guild") -> [dict]:
+        to_reply_id = None
         ret_text = ""
         ret_img = []
         for node in satori_obj:
@@ -373,18 +374,22 @@ class AdapterQQ:
                                 ret_img.append(img_content)
                         else:
                             ret_img.append(img_url)
+                elif node["type"] == "passive":
+                    to_reply_id = node["attrs"]["id"]
                     
         ret_vec = []
         ret_vec.append({
             "content":ret_text,
-            "file_image":None
+            "file_image":None,
+            "to_reply_id":to_reply_id
         })
         if len(ret_img) != 0:
             ret_vec[0]["file_image"] = ret_img[0]
         for img in ret_img[1:]:
             ret_vec.append({
                 "content":"",
-                "file_image":img
+                "file_image":img,
+                "to_reply_id":to_reply_id
             })
         return ret_vec
     
@@ -398,6 +403,7 @@ class AdapterQQ:
             channel_id = channel_id[8:]
             to_ret = []
             for it in to_sends:
+                if it["to_reply_id"]:to_reply_id = it["to_reply_id"]
                 async with httpx.AsyncClient() as client:
                     headers = {"Authorization":"QQBot {}".format(self._access_token),"X-Union-Appid":self._appid,"Accept":"application/json"}
                     url:str = self._http_url + "/channels/{}/messages".format(channel_id)
@@ -417,6 +423,7 @@ class AdapterQQ:
             to_ret = []
             msg_seq = 1
             for it in to_sends:
+                if it["to_reply_id"]:to_reply_id = it["to_reply_id"]
                 async with httpx.AsyncClient() as client:
                     headers = {"Authorization":"QQBot {}".format(self._access_token),"X-Union-Appid":self._appid,"Accept":"application/json"}
                     url:str = self._http_url + "/v2/groups/{}/messages".format(channel_id)
@@ -429,7 +436,7 @@ class AdapterQQ:
                     }
                     msg_seq += 1
                     ret = (await client.post(url,headers=headers,json=data)).json()
-                    print(ret)
+                    # print(ret)
                     to_ret.append(SatoriMessage(id=ret["msg_id"],content="").to_dict())
             return to_ret
     
