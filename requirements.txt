@@ -1,0 +1,6 @@
+aiohttp
+httpx
+websockets
+betterproto
+aiofiles
+json5
