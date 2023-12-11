@@ -130,7 +130,7 @@ WebHook（暂未实现）
 | appid | 文本 | -   | qq平台的appid | xxxxxxxxxxxxxxxxxxxxx |
 | token | 文本 | -   | qq平台的token| xxxxxxxxxxxxxxxxxxxxx |
 | appsecret | 文本 | - | qq平台的appsecret | xxxxxxxxxxxxxxxxxxxxx |
-| withgroup | 文本 | False | 是否接收QQ群消息，若你的账号没有这个权限，请不要开启，目前仅少部分账号和企业号有此权限 | True |
+| withgroup | 文本 | false | 是否接收QQ群消息，若你的账号没有这个权限，请不要开启，目前仅少部分账号和企业号有此权限 | true |
 
 **已实现事件：**
 
