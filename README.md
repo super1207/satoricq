@@ -10,7 +10,7 @@ All To Satori！
 
 为什么是satori：我感觉很棒，它能同时接入很多不同的平台；协议描述很自然，我感觉我能理解；Satori有个Js/Ts实现，要是我弃坑了，也影响不会太大。
 
-为什么叫SatoriCQ：不知道，以后再想想，总能想出点意义来。
+为什么叫satoricq：不知道，以后再想想，总能想出点意义来。
 
 项目进展：OneBot、KOOK、大别野（mihoyo），qq部分已经可用了。目前，还不能对接Koishi的Satori Adapter插件，原因未知。现在你可以用[satori-python](https://github.com/RF-Tar-Railt/satori-python) 来体验satoricq。
 
