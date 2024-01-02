@@ -172,7 +172,7 @@ class Satori:
                 "info":login_info,
             })
         # 创建server
-        app = web.Application()
+        app = web.Application(client_max_size=1024**2*100) # 100MB
         app.add_routes([
             web.post("/v1/admin/{method}",self._handle_http_admin),
             web.get("/v1/events",self._handle_events_ws),
