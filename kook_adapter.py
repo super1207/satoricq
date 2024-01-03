@@ -387,3 +387,53 @@ class AdapterKook:
             joined_at=get_json_or(obret,"join_time",None)
         ).to_dict()
         return satori_ret
+    
+    async def get_user(self,platform:Optional[str],self_id:Optional[str],user_id:str) -> [dict]:
+        '''获取用户信息'''
+        url = "/user/view?user_id={}".format(user_id)
+        obret =  (await self._api_call(url))
+        satori_ret = SatoriUser(
+            id=obret["id"],
+            name=obret["username"],
+            avatar=obret["avatar"],
+            is_bot=obret["bot"],
+        ).to_dict()
+        return satori_ret
+    
+    async def get_channel_list(self,platform:Optional[str],self_id:Optional[str],guild_id:str) -> [dict]:
+        '''获取频道列表'''
+        url = "/channel/list?guild_id={}".format(guild_id)
+        obret =  (await self._api_call(url))
+        ret_list = []
+        items = get_json_or(obret,"items",None)
+        for it in items:
+            channel_type = it["type"]
+            channel_id = "GROUP_" + it["id"]
+            channel_name = it["name"]
+            channel_parent = it["parent_id"]
+            if channel_type == 1:
+                ret_list.append(SatoriChannel(
+                    id=channel_id,
+                    name=channel_name,
+                    type=SatoriChannel.ChannelType.TEXT,
+                    parent_id=channel_parent
+                ).to_dict())
+        page_total = get_json_or(obret,"data",1)
+        if page_total > 1:
+            for i in range(2,page_total + 1):
+                url = "/channel/list?guild_id={}&page={}".format(guild_id,i)
+                obret =  (await self._api_call(url))
+                items = get_json_or(obret,"items",None)
+                for it in items:
+                    channel_type = it["type"]
+                    channel_id = "GROUP_" + it["id"]
+                    channel_name = it["name"]
+                    channel_parent = it["parent_id"]
+                    if channel_type == 1:
+                        ret_list.append(SatoriChannel(
+                            id=channel_id,
+                            name=channel_name,
+                            type=SatoriChannel.ChannelType.TEXT,
+                            parent=channel_parent
+                        ).to_dict())
+        return {"data":ret_list}

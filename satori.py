@@ -64,6 +64,18 @@ class Satori:
             return web.Response(text=json.dumps(remove_json_null(ret)),headers={
                 "Content-Type":"application/json; charset=utf-8"
             })
+        elif method == "/v1/channel.list":
+            body = await request.json()
+            ret = await adapter.get_channel_list(platform,self_id,body["guild_id"])
+            return web.Response(text=json.dumps(remove_json_null(ret)),headers={
+                "Content-Type":"application/json; charset=utf-8"
+            })
+        elif method == "/v1/user.get":
+            body = await request.json()
+            ret = await adapter.get_user(platform,self_id,body["user_id"])
+            return web.Response(text=json.dumps(remove_json_null(ret)),headers={
+                "Content-Type":"application/json; charset=utf-8"
+            })
         return web.Response(text="method not found")
     
     async def _handle_http_admin(self,request:web.Request):
