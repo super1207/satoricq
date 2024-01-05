@@ -131,9 +131,10 @@ class SatoriGuild():
 class SatoriChannel():
     class ChannelType(Enum):
         TEXT = 0
-        VOICE = 1
+        DIRECT = 1
         CATEGORY = 2
-        DIRECT = 3
+        VOICE = 3
+        
     def __init__(self,id:str,type:ChannelType,name:str = None,parent_id:str = None) -> None:
         self.id = id
         self.type = type

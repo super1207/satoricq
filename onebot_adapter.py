@@ -327,7 +327,7 @@ class AdapterOnebot:
             elif message_type == "private":
                 channel_obj = {
                         "id":str(evt["user_id"]),
-                        "type":3,
+                        "type":1,
                         "name":None,
                         "parent_id":None
                     }
